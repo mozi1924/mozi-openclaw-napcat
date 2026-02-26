@@ -1,0 +1,44 @@
+{
+  "name": "@openclaw/napcat",
+  "version": "2026.2.26",
+  "description": "OpenClaw NapCat QQ channel plugin",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "napcat",
+      "label": "NapCat",
+      "selectionLabel": "NapCat (QQ)",
+      "docsPath": "/channels/napcat",
+      "docsLabel": "napcat",
+      "blurb": "QQ channel plugin via NapCat OneBot WebSocket.",
+      "aliases": [
+        "qq",
+        "onebot",
+        "nap"
+      ],
+      "order": 75,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "@openclaw/napcat",
+      "localPath": "extensions/napcat",
+      "defaultChoice": "npm"
+    }
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/ws": "^8.5.14",
+    "typescript": "^5.8.2"
+  }
+}

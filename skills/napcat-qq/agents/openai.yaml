@@ -1,0 +1,4 @@
+interface:
+  display_name: "NapCat QQ"
+  short_description: "通过 napcat channel 发送 QQ 私聊/群聊消息"
+  default_prompt: "需要发送 QQ 消息时，使用 $napcat-qq；调用 message 工具请显式指定 channel=napcat，并使用 qq:/private:/group:/session:napcat:* 目标格式。默认口语化、简短回复；只执行动作不发言时加 [SILENT]。"
