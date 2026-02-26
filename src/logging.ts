@@ -1,4 +1,5 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import { dirname, resolve } from "node:path";
 
 function sanitizeToken(raw: string): string {
@@ -11,7 +12,9 @@ export function resolveInboundLogPath(params: {
   userQq: number;
   groupId?: number;
 }): string {
-  const base = resolve(params.dir || "./logs/napcat-inbound");
+  const raw = (params.dir || "./logs/napcat-inbound").trim();
+  const expanded = raw.startsWith("~/") ? resolve(os.homedir(), raw.slice(2)) : raw;
+  const base = resolve(expanded);
   if (params.chatType === "group") {
     return resolve(base, `group-${sanitizeToken(String(params.groupId || "unknown"))}.log`);
   }
@@ -45,4 +48,3 @@ export async function appendInboundLog(params: {
   await appendFile(params.filePath, line, "utf8");
   await capJsonlLines(params.filePath, params.maxLines);
 }
-

@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { IncomingMessage } from "node:http";
-import WebSocket, { WebSocketServer } from "ws";
 import type {
   NapcatInboundMessage,
   OneBotApiResponse,
@@ -15,6 +14,14 @@ type ApiResolve = {
   resolve: (value: unknown) => void;
   reject: (reason?: unknown) => void;
   timer: NodeJS.Timeout;
+};
+
+type AnySocket = {
+  readyState?: number;
+  on?: (event: string, cb: (...args: unknown[]) => void) => void;
+  addEventListener?: (event: string, cb: (ev: unknown) => void) => void;
+  send: (data: string) => void;
+  close: () => void;
 };
 
 type GatewayOptions = {
@@ -86,6 +93,37 @@ function eventTimestampMs(event: OneBotMessageEvent): number {
   return Date.now();
 }
 
+async function decodeWsFrame(payload: unknown): Promise<string> {
+  if (typeof payload === "string") {
+    return payload;
+  }
+  if (payload && typeof (payload as { data?: unknown }).data !== "undefined") {
+    return decodeWsFrame((payload as { data?: unknown }).data);
+  }
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(payload)) {
+    return payload.toString("utf8");
+  }
+  if (payload instanceof ArrayBuffer) {
+    return new TextDecoder().decode(new Uint8Array(payload));
+  }
+  if (ArrayBuffer.isView(payload)) {
+    const view = payload as ArrayBufferView;
+    return new TextDecoder().decode(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
+  }
+  if (payload && typeof (payload as { text?: () => Promise<string> }).text === "function") {
+    try {
+      return await (payload as { text: () => Promise<string> }).text();
+    } catch {
+      return "";
+    }
+  }
+  if (payload && typeof (payload as { toString?: () => string }).toString === "function") {
+    const s = (payload as { toString: () => string }).toString();
+    return s === "[object Blob]" ? "" : s;
+  }
+  return "";
+}
+
 function appendAccessTokenToUrl(rawUrl: string, token?: string): string {
   if (!token) {
     return rawUrl;
@@ -108,8 +146,9 @@ export class NapcatGateway {
     string,
     { card?: string; nickname?: string; role?: string; title?: string; special_title?: string; at: number }
   >();
-  private ws: WebSocket | null = null;
-  private wss: WebSocketServer | null = null;
+  private ws: AnySocket | null = null;
+  private wss: { close: (cb?: () => void) => void; on?: (event: string, cb: (...args: unknown[]) => void) => void } | null =
+    null;
   private closed = false;
 
   constructor(private readonly options: GatewayOptions) {}
@@ -142,6 +181,10 @@ export class NapcatGateway {
       pending.reject(new Error("NapCat gateway stopped"));
       this.pendingApi.delete(echo);
     }
+  }
+
+  private isSocketOpen(socket: AnySocket | null): boolean {
+    return Boolean(socket && socket.readyState === 1);
   }
 
   async sendPrivateMessage(userId: number, text: string): Promise<void> {
@@ -217,7 +260,7 @@ export class NapcatGateway {
   private async waitUntilConnected(timeoutMs = 5000): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      if (this.isSocketOpen(this.ws)) {
         return;
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 200));
@@ -226,14 +269,16 @@ export class NapcatGateway {
   }
 
   private async startReverseServer(): Promise<void> {
-    const wss = new WebSocketServer({
+    const wsMod = await import("ws");
+    const WSS = wsMod.WebSocketServer;
+    const wss = new WSS({
       host: this.options.wsHost,
       port: this.options.wsPort,
       path: this.options.wsPath
     });
     this.wss = wss;
 
-    wss.on("connection", (socket, req) => {
+    wss.on("connection", (socket: AnySocket, req: IncomingMessage) => {
       if (!this.authPass(req)) {
         socket.close(1008, "Unauthorized");
         return;
@@ -277,17 +322,21 @@ export class NapcatGateway {
       throw new Error("wsUrl is required when wsMode=forward");
     }
     const wsUrl = appendAccessTokenToUrl(this.options.wsUrl, this.options.accessToken);
-    const headers: Record<string, string> = {};
-    if (this.options.accessToken) {
-      headers.Authorization = `Bearer ${this.options.accessToken}`;
+    const WS = (globalThis as { WebSocket?: new (url: string, protocols?: string | string[]) => AnySocket })
+      .WebSocket;
+    if (!WS) {
+      throw new Error("global WebSocket is unavailable in this Node runtime");
     }
-
-    const socket = new WebSocket(wsUrl, { headers });
-    socket.on("open", () => {
+    const protocols: string[] = [];
+    if (this.options.accessToken) {
+      protocols.push(`bearer.${this.options.accessToken}`);
+    }
+    const socket = protocols.length > 0 ? new WS(wsUrl, protocols) : new WS(wsUrl);
+    const onOpen = () => {
       console.log(`[napcat] forward websocket connected ${wsUrl}`);
       this.attachSocket(socket);
-    });
-    socket.on("close", () => {
+    };
+    const onClose = () => {
       if (this.ws === socket) {
         this.ws = null;
       }
@@ -296,8 +345,17 @@ export class NapcatGateway {
           this.startForwardClient().catch((err) => this.options.onError?.(err));
         }, 3000);
       }
-    });
-    socket.on("error", (err) => this.options.onError?.(err));
+    };
+    const onError = (err: unknown) => this.options.onError?.(err);
+    if (socket.on) {
+      socket.on("open", onOpen);
+      socket.on("close", onClose);
+      socket.on("error", onError);
+      return;
+    }
+    socket.addEventListener?.("open", onOpen as (ev: unknown) => void);
+    socket.addEventListener?.("close", onClose as (ev: unknown) => void);
+    socket.addEventListener?.("error", onError as (ev: unknown) => void);
   }
 
   private authPass(req: IncomingMessage): boolean {
@@ -317,17 +375,27 @@ export class NapcatGateway {
     }
   }
 
-  private attachSocket(socket: WebSocket): void {
+  private attachSocket(socket: AnySocket): void {
     this.ws = socket;
-    socket.on("message", (buffer) => {
-      const raw = buffer.toString();
+    const onMessage = async (buffer: unknown) => {
+      const raw = await decodeWsFrame(buffer);
+      if (!raw) {
+        return;
+      }
       this.handlePayload(raw).catch((err) => this.options.onError?.(err));
-    });
-    socket.on("close", () => {
+    };
+    const onClose = () => {
       if (this.ws === socket) {
         this.ws = null;
       }
-    });
+    };
+    if (socket.on) {
+      socket.on("message", onMessage);
+      socket.on("close", onClose);
+      return;
+    }
+    socket.addEventListener?.("message", onMessage as (ev: unknown) => void);
+    socket.addEventListener?.("close", onClose as (ev: unknown) => void);
   }
 
   private async handlePayload(raw: string): Promise<void> {
@@ -335,6 +403,7 @@ export class NapcatGateway {
     try {
       payload = JSON.parse(raw);
     } catch {
+      this.options.onError?.(`[napcat] non-json ws frame: ${raw.slice(0, 120)}`);
       return;
     }
     if (typeof payload !== "object" || payload === null) {
@@ -555,10 +624,10 @@ export class NapcatGateway {
   }
 
   private async callAction(action: string, params: Record<string, unknown>): Promise<unknown> {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.isSocketOpen(this.ws)) {
       await this.waitUntilConnected();
     }
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.isSocketOpen(this.ws)) {
       throw new Error("napcat websocket not connected");
     }
     const echo = randomUUID();

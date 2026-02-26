@@ -269,6 +269,11 @@ async function deliverNapcatReply(params: {
 
   if (params.message.chatType === "private") {
     await gateway.sendPrivateMessage(params.message.userQq, text);
+    try {
+      await gateway.setInputStatus(params.message.userQq, 0);
+    } catch {
+      // ignore
+    }
     return;
   }
   if (!params.message.groupId) {
@@ -336,6 +341,7 @@ async function handleNapcatInbound(params: {
 
   if (!isGroup) {
     if (account.dmPolicy === "disabled") {
+      runtime.log?.(`napcat: drop dm sender=${senderId} (dmPolicy=disabled)`);
       return;
     }
     if (account.dmPolicy !== "open" && !isAllowedByAllowlist(effectiveAllowFrom, message.userQq)) {
@@ -356,13 +362,16 @@ async function handleNapcatInbound(params: {
           );
         }
       }
+      runtime.log?.(`napcat: drop dm sender=${senderId} (dmPolicy=${account.dmPolicy}, not allowlisted)`);
       return;
     }
   } else {
     if (!message.groupId) {
+      runtime.log?.("napcat: drop group message (missing groupId)");
       return;
     }
     if (account.groupPolicy === "disabled") {
+      runtime.log?.(`napcat: drop group=${message.groupId} (groupPolicy=disabled)`);
       return;
     }
     const groups = account.groups ?? {};
@@ -373,14 +382,17 @@ async function handleNapcatInbound(params: {
     const hasGroupWhitelist = Object.keys(groups).length > 0;
     const inGroupWhitelist = Boolean(exactGroupCfg || wildcardGroupCfg);
     if (hasGroupWhitelist && !inGroupWhitelist) {
+      runtime.log?.(`napcat: drop group=${message.groupId} (group not in channels.napcat.groups whitelist)`);
       return;
     }
     if (groupCfg?.enabled === false) {
+      runtime.log?.(`napcat: drop group=${message.groupId} (group config disabled)`);
       return;
     }
 
     const requireMention = groupCfg?.requireMention ?? account.groupRequireMention;
     if (requireMention && !isMentioned(rawBody, message.selfQq, message.wasAtSelf)) {
+      runtime.log?.(`napcat: drop group=${message.groupId} sender=${senderId} (requireMention=true and not mentioned)`);
       return;
     }
 
@@ -389,6 +401,9 @@ async function handleNapcatInbound(params: {
       const innerAllow = normalizeAllowlist(groupCfg?.allowFrom);
       const allowList = innerAllow.length > 0 ? innerAllow : outerAllow;
       if (allowList.length > 0 && !isAllowedByAllowlist(allowList, message.userQq)) {
+        runtime.log?.(
+          `napcat: drop group=${message.groupId} sender=${senderId} (group sender allowlist mismatch, allow=${allowList.join(",")})`
+        );
         return;
       }
     }
@@ -404,9 +419,10 @@ async function handleNapcatInbound(params: {
     }
   });
 
-  const fromLabel = isGroup
-    ? `group:${message.groupName || message.groupId}`
+  const conversationDisplayName = isGroup
+    ? message.groupName || `group:${message.groupId}`
     : senderName || `qq:${senderId}`;
+  const fromLabel = conversationDisplayName;
 
   const storePath = core.channel.session.resolveStorePath(
     (config.session as Record<string, unknown> | undefined)?.store as string | undefined,
@@ -436,9 +452,16 @@ async function handleNapcatInbound(params: {
     From: isGroup ? `napcat:group:${message.groupId}` : `napcat:${senderId}`,
     To: isGroup ? `napcat:group:${message.groupId}` : `napcat:${senderId}`,
     SessionKey: route.sessionKey,
+    SessionDisplayName: conversationDisplayName,
+    displayName: conversationDisplayName,
+    name: conversationDisplayName,
+    Title: conversationDisplayName,
+    ConversationTitle: conversationDisplayName,
+    Topic: conversationDisplayName,
+    Subject: conversationDisplayName,
     AccountId: route.accountId,
     ChatType: isGroup ? "group" : "direct",
-    ConversationLabel: fromLabel,
+    ConversationLabel: conversationDisplayName,
     SenderName: senderName || undefined,
     SenderId: senderId,
     SenderQQ: senderId,
@@ -482,8 +505,8 @@ async function handleNapcatInbound(params: {
   if (!isGroup) {
     try {
       await gateway.setInputStatus(message.userQq, 1);
-    } catch {
-      // ignore
+    } catch (err) {
+      runtime.error?.(`napcat: set_input_status typing failed: ${String(err)}`);
     }
   }
   try {
@@ -505,8 +528,8 @@ async function handleNapcatInbound(params: {
     if (!isGroup) {
       try {
         await gateway.setInputStatus(message.userQq, 0);
-      } catch {
-        // ignore
+      } catch (err) {
+        runtime.error?.(`napcat: set_input_status idle failed: ${String(err)}`);
       }
     }
   }
