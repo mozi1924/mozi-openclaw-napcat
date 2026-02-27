@@ -603,6 +603,30 @@ export const napcatPlugin: ChannelPlugin<ResolvedNapcatAccount> = {
     media: false,
     nativeCommands: true
   },
+  status: {
+    defaultRuntime: {
+      accountId: DEFAULT_ACCOUNT_ID,
+      running: false,
+      lastStartAt: null,
+      lastStopAt: null,
+      lastError: null,
+    },
+    buildChannelSummary: () => ({ ok: true, active: true, components: [] }),
+    probeAccount: async () => ({ ok: true, active: true }),
+    auditAccount: async () => undefined,
+    buildAccountSnapshot: ({ account }) => ({
+      accountId: account.accountId,
+      name: account.name,
+      enabled: account.enabled,
+      configured: true,
+      tokenSource: account.tokenSource ?? "none",
+      running: true,
+      lastStartAt: null,
+      lastStopAt: null,
+      lastError: null,
+      probe: { ok: true, active: true }
+    })
+  },
   reload: { configPrefixes: ["channels.napcat"] },
   configSchema: {
     type: "object",

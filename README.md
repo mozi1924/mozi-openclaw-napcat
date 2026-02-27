@@ -16,9 +16,9 @@ NapCat QQ channel plugin for OpenClaw (OneBot v11 over WebSocket).
 
 ## 安装识别文件
 
-- `package.json` 包含 `openclaw.extensions` 和 `openclaw.channel/install`
+- `package.json` 包含 `openclaw.extensions` 指向入口文件
 - `openclaw.plugin.json`
-- `index.ts` 默认导出 OpenClaw 插件对象
+- `index.ts` 动态注册 OpenClaw channel 插件对象
 
 ## 基本配置示例
 
