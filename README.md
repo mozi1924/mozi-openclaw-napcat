@@ -120,6 +120,7 @@ WebSocket 鉴权：
 从其它 channel/webchat 调用 `message` 工具发 QQ 时：
 
 - `channel`：`napcat`
+- 文本字段：使用 `text`（不要用 `message`）
 - `target` 支持：
   - `qq:<QQ号>`
   - `private:<QQ号>`

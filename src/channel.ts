@@ -135,6 +135,9 @@ function parseReplyControl(raw: string): ReplyControl {
 
 function buildBodyForAgent(message: NapcatInboundMessage): string {
   const raw = message.text.trim();
+  if (raw.startsWith("/")) {
+    return raw;
+  }
   if (raw === "__SYSTEM_POKE__") {
     if (message.chatType === "group") {
       const groupName = sanitizeContextValue(message.groupName) || String(message.groupId ?? "");
@@ -486,6 +489,7 @@ async function handleNapcatInbound(params: {
     GroupSubject: isGroup ? message.groupName || String(message.groupId) : undefined,
     GroupName: isGroup ? message.groupName || String(message.groupId) : undefined,
     WasMentioned: isGroup ? isMentioned(rawBody, message.selfQq, message.wasAtSelf) : undefined,
+    CommandAuthorized: true,
     MessageSid: message.messageId ? String(message.messageId) : `napcat:${message.timestamp}:${senderId}`,
     Timestamp: message.timestamp,
     Provider: CHANNEL_ID,
@@ -578,7 +582,7 @@ export const napcatPlugin: ChannelPlugin<ResolvedNapcatAccount> = {
     reactions: false,
     threads: false,
     media: false,
-    nativeCommands: false
+    nativeCommands: true
   },
   reload: { configPrefixes: ["channels.napcat"] },
   configSchema: {
