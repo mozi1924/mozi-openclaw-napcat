@@ -32,6 +32,16 @@ function getActiveGateway(accountId?: string): NapcatGateway | null {
 
 function parseOutboundTarget(input: string): { kind: "private" | "group"; id: number } | null {
   const raw = input.trim();
+  const agentSession = raw.match(/^agent:[^:]+:(session:napcat:(private|direct|group):(\d+))$/i);
+  if (agentSession) {
+    const k = agentSession[2].toLowerCase();
+    return { kind: k === "group" ? "group" : "private", id: Number(agentSession[3]) };
+  }
+  const agentDirect = raw.match(/^agent:[^:]+:napcat:(private|direct|group):(\d+)$/i);
+  if (agentDirect) {
+    const k = agentDirect[1].toLowerCase();
+    return { kind: k === "group" ? "group" : "private", id: Number(agentDirect[2]) };
+  }
   const s = raw.match(/^session:napcat:(private|direct|group):(\d+)$/i);
   if (s) {
     const k = s[1].toLowerCase();

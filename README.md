@@ -129,6 +129,14 @@ WebSocket 鉴权：
   - `session:napcat:private:<QQ号>`
   - `session:napcat:direct:<QQ号>`
   - `session:napcat:group:<群号>`
+  - `agent:<agentId>:napcat:direct:<QQ号>`（兼容输入，自动归一化）
+  - `agent:<agentId>:session:napcat:private:<QQ号>`（兼容输入，自动归一化）
+
+推荐：
+
+- 私聊优先用 `direct:<QQ号>`（或 `private:<QQ号>`）
+- 群聊优先用 `group:<群号>`
+- 不要直接把完整会话键当作 target；如已有会话键，先提取并改写为上述 target。
 
 ## 回复控制标签（给 Agent）
 
