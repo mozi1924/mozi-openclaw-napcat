@@ -32,11 +32,12 @@ function getActiveGateway(accountId?: string): NapcatGateway | null {
 
 function parseOutboundTarget(input: string): { kind: "private" | "group"; id: number } | null {
   const raw = input.trim();
-  const s = raw.match(/^session:napcat:(private|group):(\d+)$/i);
+  const s = raw.match(/^session:napcat:(private|direct|group):(\d+)$/i);
   if (s) {
-    return { kind: s[1].toLowerCase() as "private" | "group", id: Number(s[2]) };
+    const k = s[1].toLowerCase();
+    return { kind: k === "group" ? "group" : "private", id: Number(s[2]) };
   }
-  const m = raw.match(/^(qq|private|group):(\d+)$/i);
+  const m = raw.match(/^(qq|private|direct|group):(\d+)$/i);
   if (m) {
     const kind = m[1].toLowerCase() === "group" ? "group" : "private";
     return { kind, id: Number(m[2]) };
@@ -45,6 +46,14 @@ function parseOutboundTarget(input: string): { kind: "private" | "group"; id: nu
     return { kind: "private", id: Number(raw) };
   }
   return null;
+}
+
+function normalizeNapcatOutboundTarget(input: string): string {
+  const parsed = parseOutboundTarget(input);
+  if (!parsed) {
+    return input.trim();
+  }
+  return parsed.kind === "group" ? `group:${parsed.id}` : `direct:${parsed.id}`;
 }
 
 function sanitizeContextValue(value: string | undefined): string {
@@ -689,16 +698,16 @@ export const napcatPlugin: ChannelPlugin<ResolvedNapcatAccount> = {
     resolveToolPolicy: () => null
   },
   messaging: {
-    normalizeTarget: (target) => String(target).trim(),
+    normalizeTarget: (target) => normalizeNapcatOutboundTarget(String(target)),
     targetResolver: {
       looksLikeId: (target) => Boolean(parseOutboundTarget(String(target))),
-      hint: "<qq|qq:ID|private:ID|group:ID|session:napcat:private:ID|session:napcat:group:ID>"
+      hint: "<qq|qq:ID|private:ID|direct:ID|group:ID|session:napcat:private:ID|session:napcat:direct:ID|session:napcat:group:ID>"
     }
   },
   agentPrompt: {
     messageToolHints: () => [
       "- NapCat targets: `qq:123456`, `private:123456`, `group:987654321`.",
-      "- Session targets also supported: `session:napcat:private:123456`, `session:napcat:group:987654321`.",
+      "- NapCat direct targets are normalized to `direct:<id>`; session targets supported: `session:napcat:direct:123456`, `session:napcat:group:987654321`.",
       "- To send from any channel via message tool, set `channel` to `napcat` and provide one of the targets above.",
       "- For live name lookup, use directory/resolver in this channel to resolve QQ/group IDs before sending.",
       "- Reply controls in text: `[SILENT]`, `[REPLY:<message_id>]`, `[AT:<qq>]`, `[AT_ALL]`, `[POKE]`, `[POKE:<qq>]`, `[KICK:<qq>]`, `[MUTE:<qq>:<seconds>]`.",
@@ -858,8 +867,9 @@ export const napcatPlugin: ChannelPlugin<ResolvedNapcatAccount> = {
     deliveryMode: "direct",
     chunker: null,
     textChunkLimit: 2000,
+    resolveTarget: ({ to }) => normalizeNapcatOutboundTarget(String(to)),
     sendText: async ({ to, text, accountId }) => {
-      const target = parseOutboundTarget(String(to));
+      const target = parseOutboundTarget(normalizeNapcatOutboundTarget(String(to)));
       if (!target) {
         throw new Error(`Invalid NapCat target: ${String(to)}`);
       }

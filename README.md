@@ -124,8 +124,10 @@ WebSocket 鉴权：
 - `target` 支持：
   - `qq:<QQ号>`
   - `private:<QQ号>`
+  - `direct:<QQ号>`
   - `group:<群号>`
   - `session:napcat:private:<QQ号>`
+  - `session:napcat:direct:<QQ号>`
   - `session:napcat:group:<群号>`
 
 ## 回复控制标签（给 Agent）
