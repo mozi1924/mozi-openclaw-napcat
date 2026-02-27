@@ -296,6 +296,7 @@ async function handleNapcatInbound(params: {
     return;
   }
   const bodyForAgent = buildBodyForAgent(message);
+  const isSlashCommand = rawBody.startsWith("/");
   if (account.inboundLogEnabled) {
     try {
       const filePath = resolveInboundLogPath({
@@ -365,6 +366,15 @@ async function handleNapcatInbound(params: {
       runtime.log?.(`napcat: drop dm sender=${senderId} (dmPolicy=${account.dmPolicy}, not allowlisted)`);
       return;
     }
+    if (isSlashCommand) {
+      const pairedAllowed = isAllowedByAllowlist(effectiveAllowFrom, message.userQq);
+      if (!account.privateSlashCommandsEnabled || !pairedAllowed) {
+        runtime.log?.(
+          `napcat: drop dm slash command sender=${senderId} (privateSlashCommandsEnabled=${account.privateSlashCommandsEnabled}, paired=${pairedAllowed})`
+        );
+        return;
+      }
+    }
   } else {
     if (!message.groupId) {
       runtime.log?.("napcat: drop group message (missing groupId)");
@@ -407,6 +417,10 @@ async function handleNapcatInbound(params: {
         return;
       }
     }
+    if (isSlashCommand && !account.groupSlashCommandsEnabled) {
+      runtime.log?.(`napcat: drop group slash command group=${message.groupId} (groupSlashCommandsEnabled=false)`);
+      return;
+    }
   }
 
   const route = core.channel.routing.resolveAgentRoute({
@@ -447,8 +461,8 @@ async function handleNapcatInbound(params: {
   const ctxPayload = core.channel.reply.finalizeInboundContext({
     Body: body,
     BodyForAgent: bodyForAgent,
-    RawBody: bodyForAgent,
-    CommandBody: bodyForAgent,
+    RawBody: rawBody,
+    CommandBody: rawBody,
     From: isGroup ? `napcat:group:${message.groupId}` : `napcat:${senderId}`,
     To: isGroup ? `napcat:group:${message.groupId}` : `napcat:${senderId}`,
     SessionKey: route.sessionKey,
@@ -575,6 +589,16 @@ export const napcatPlugin: ChannelPlugin<ResolvedNapcatAccount> = {
         type: "boolean",
         title: "Group Require Mention",
         description: "Default true. If false, all group messages can be delivered to agent."
+      },
+      privateSlashCommandsEnabled: {
+        type: "boolean",
+        title: "Private Slash Commands Enabled",
+        description: "Default true. Allow /commands in private chats (paired users only)."
+      },
+      groupSlashCommandsEnabled: {
+        type: "boolean",
+        title: "Group Slash Commands Enabled",
+        description: "Default false. Allow /commands in group chats."
       },
       inboundLogEnabled: {
         type: "boolean",

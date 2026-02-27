@@ -39,6 +39,8 @@ NapCat QQ channel plugin for OpenClaw (OneBot v11 over WebSocket).
       "allowFrom": ["12345678"],
       "groupPolicy": "allowlist",
       "groupRequireMention": true,
+      "privateSlashCommandsEnabled": true,
+      "groupSlashCommandsEnabled": false,
       "groupAllowFrom": ["12345678"],
       "inboundLogEnabled": true,
       "inboundLogDir": "./logs/napcat-inbound",
@@ -105,6 +107,13 @@ WebSocket 鉴权：
 系统 poke 事件会注入为系统消息文本（群聊/私聊均支持）。
 
 群聊默认仅在 `@机器人` 时投递给 agent，可通过 `groupRequireMention=false` 允许全量群消息投递。
+
+斜杠命令（如 `/reset`）：
+
+- 私聊默认启用：`privateSlashCommandsEnabled=true`
+- 但仅配对/白名单通过的私聊可用
+- 群聊默认禁用：`groupSlashCommandsEnabled=false`
+- 需要时可手动开启群聊斜杠命令
 
 ## Message 工具目标写法
 

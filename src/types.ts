@@ -48,6 +48,8 @@ export type NapcatAccountConfig = {
   allowFrom?: string[];
   groupPolicy?: GroupPolicy;
   groupRequireMention?: boolean;
+  privateSlashCommandsEnabled?: boolean;
+  groupSlashCommandsEnabled?: boolean;
   groupAllowFrom?: string[];
   groups?: Record<string, NapcatGroupConfig>;
   inboundLogEnabled?: boolean;

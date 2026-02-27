@@ -7,6 +7,8 @@ const DEFAULTS = {
   wsPort: 3001,
   wsPath: "/",
   groupRequireMention: true,
+  privateSlashCommandsEnabled: true,
+  groupSlashCommandsEnabled: false,
   inboundLogEnabled: true,
   inboundLogDir: "./logs/napcat-inbound",
   inboundLogMaxLines: 2000,
@@ -54,6 +56,14 @@ function toAccountConfig(v: unknown): NapcatAccountConfig {
         : undefined,
     groupRequireMention:
       typeof obj.groupRequireMention === "boolean" ? obj.groupRequireMention : undefined,
+    privateSlashCommandsEnabled:
+      typeof obj.privateSlashCommandsEnabled === "boolean"
+        ? obj.privateSlashCommandsEnabled
+        : undefined,
+    groupSlashCommandsEnabled:
+      typeof obj.groupSlashCommandsEnabled === "boolean"
+        ? obj.groupSlashCommandsEnabled
+        : undefined,
     groupAllowFrom: asStringArray(obj.groupAllowFrom),
     inboundLogEnabled: typeof obj.inboundLogEnabled === "boolean" ? obj.inboundLogEnabled : undefined,
     inboundLogDir: typeof obj.inboundLogDir === "string" ? obj.inboundLogDir : undefined,
@@ -81,6 +91,10 @@ function mergeAccountConfig(base: NapcatAccountConfig, override: NapcatAccountCo
     allowFrom: override.allowFrom ?? base.allowFrom,
     groupPolicy: override.groupPolicy ?? base.groupPolicy,
     groupRequireMention: override.groupRequireMention ?? base.groupRequireMention,
+    privateSlashCommandsEnabled:
+      override.privateSlashCommandsEnabled ?? base.privateSlashCommandsEnabled,
+    groupSlashCommandsEnabled:
+      override.groupSlashCommandsEnabled ?? base.groupSlashCommandsEnabled,
     groupAllowFrom: override.groupAllowFrom ?? base.groupAllowFrom,
     inboundLogEnabled: override.inboundLogEnabled ?? base.inboundLogEnabled,
     inboundLogDir: override.inboundLogDir ?? base.inboundLogDir,
@@ -122,6 +136,8 @@ export type ResolvedNapcatAccount = {
   allowFrom: string[];
   groupPolicy: "disabled" | "allowlist" | "open";
   groupRequireMention: boolean;
+  privateSlashCommandsEnabled: boolean;
+  groupSlashCommandsEnabled: boolean;
   groupAllowFrom: string[];
   inboundLogEnabled: boolean;
   inboundLogDir: string;
@@ -161,6 +177,10 @@ export function resolveNapcatAccount(params: {
     allowFrom: merged.allowFrom ?? [],
     groupPolicy: merged.groupPolicy ?? "allowlist",
     groupRequireMention: merged.groupRequireMention ?? DEFAULTS.groupRequireMention,
+    privateSlashCommandsEnabled:
+      merged.privateSlashCommandsEnabled ?? DEFAULTS.privateSlashCommandsEnabled,
+    groupSlashCommandsEnabled:
+      merged.groupSlashCommandsEnabled ?? DEFAULTS.groupSlashCommandsEnabled,
     groupAllowFrom: merged.groupAllowFrom ?? [],
     inboundLogEnabled: merged.inboundLogEnabled ?? DEFAULTS.inboundLogEnabled,
     inboundLogDir: merged.inboundLogDir ?? DEFAULTS.inboundLogDir,
